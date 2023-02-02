@@ -1,0 +1,451 @@
+openapi: '3.0.3'
+info:
+  title: 'OPUS'
+  version: '0.1'
+servers:
+- url: http://localhost:8080/v1/
+  description: Local
+components:
+  parameters:
+    api_key_id_param:
+      name: api_key_id
+      in: path
+      schema:
+        type: string
+        format: uuid
+      required: true
+      description: "public id of the api_key"
+  schemas:
+    ApiKeyGenerateRequest:
+      type: "object"
+      description: "Generate an api key"
+      properties:
+        description:
+          type: "string"
+          description: "Description associated with the key"
+      required:
+        - description
+    ApiKeyGenerateResponse:
+      type: "object"
+      properties:
+        id:
+          type: "string"
+          format: uuid
+          description: "Id of the key, can be used to delete the key later. The 'prefix' part of the key"
+        api_key:
+          type: "string"
+          description: "Api key used for authenticating with opus using X-API-KEY header. Includes a 'prefix' part which can be used to identify the key."
+      required:
+        - id
+        - api_key
+    ApiKeyResponse:
+      type: "object"
+      properties:
+        id:
+          type: "string"
+          format: uuid
+          description: "Id of the key"
+        description:
+          type: "string"
+          description: "Description associated with the key"
+      required:
+        - id
+        - description
+    NodeAggregateResponse:
+      type: array
+      description: Array of account aggregated validator statistics, each representing one day
+      items:
+        type: object
+        description: Aggregated node statistics for account in a single day
+        properties:
+          when:
+            type: string
+            format: date
+            example: "2019-05-17"
+            description: Date for which aggregated statistics are shown
+          total:
+            type: integer
+            description: Total number of node statistics
+          active:
+            type: integer
+            description: Total number of active/validating nodes
+          pending:
+            type: integer
+            description: Number of validators in pending state
+          exited:
+            type: integer
+            description: Number of validators in exited state
+          withdrawal:
+            type: integer
+            description: Number of validators for which withdrawal is possible or it's already done
+    RewardsResponse:
+      type: array
+      description: Array of daily rewards objects
+      items:
+        type: object
+        description: |
+          Rewards single day statistics. Since manipulating gwei as-is can break Javascript big numbers,
+          the ethereum numbers are exposed as string values. API consumers must convert them to integers
+          manually.
+        properties:
+          when:
+            type: string
+            format: date
+            example: "2019-05-17"
+            description: Date for which rewards are shown
+          earnings:
+            type: string
+            pattern: "^\\d+$"
+            description: Total earnings (in gwei). This can be negative values.
+          rewards:
+            type: object
+            description: Rewards (in gwei) for particular date. These values are always positive.
+            properties:
+              total:
+                type: string
+                pattern: "^\\d+$"
+                description: Total rewards as collected during the day (without penalties)
+              execution_priority:
+                type: string
+                pattern: "^\\d+$"
+                description: Priority fees for the date
+              execution_mev:
+                type: string
+                pattern: "^\\d+$"
+                description: MEV earnings
+              consensus_sync_committee:
+                type: string
+                pattern: "^\\d+$"
+                description: Sync committee earnings
+              consensus_block:
+                type: string
+                pattern: "^\\d+$"
+                description: Consensus rewards for producing a block
+              consensus_attestation:
+                type: string
+                pattern: "^\\d+$"
+                description: Consensus rewards for attesting blocks
+          penalties:
+            type: object
+            description: Penalties (in gwei) for particular date. These values are always positive.
+            properties:
+              total:
+                type: string
+                pattern: "^\\d+$"
+                description: Total penalties in the day
+              consensus_sync_committee:
+                type: string
+                pattern: "^\\d+$"
+                description: Sync committee penalties
+              consensus_attestation_missed:
+                type: string
+                pattern: "^\\d+$"
+                description: Missed attestation penalties
+              consensus_vote_late_target:
+                type: string
+                pattern: "^\\d+$"
+                description: Late target vote penalties
+              consensus_vote_wrong_target:
+                type: string
+                pattern: "^\\d+$"
+                description: Wrong target vote penalties
+              consensus_vote_late_source:
+                type: string
+                pattern: "^\\d+$"
+                description: Late source vote penalties
+          effectiveness:
+            type: object
+            description: Validators effectiveness (in %) aggregated over a sepcified time window. These values are always positive.
+            properties:
+              attester_effectiveness:
+                type: number
+                format: float
+                description: The attester effectiveness over the requested time period
+              proposer_effectiveness:
+                type: number
+                format: float
+                description: The proposer effectiveness over the requested time period
+              slashes:
+                type: integer
+                description: Number of validators slashed over the requested time period
+paths:
+  /health:
+    get:
+      description: "healthcheck"
+      responses:
+        200:
+          description: OK
+  /version:
+    get:
+      description: "Version of code base"
+      responses:
+        200:
+          description: OK
+          content:
+            "application/json":
+              schema:
+                title: VersionResponse
+                type: "object"
+                properties:
+                  code_version:
+                    type: "string"
+                    description: "Version of code base"
+                  url_versions:
+                    type: "string"
+                    description: "Supported URL versions"
+                required:
+                  - code_version
+                  - url_versions
+  /v1/auth:
+    get:
+      description: "verify authentication status"
+      tags:
+        - auth
+      responses:
+        200:
+          description: OK
+        403:
+          description: Forbidden
+        401:
+          description: Unauthorized
+  /api_keys:
+    get:
+      tags:
+        - auth
+      description: "list api keys"
+      responses:
+        200:
+          description: OK
+          content:
+            "application/json":
+              schema:
+                title: ListApiKeysResponse
+                type: "array"
+                items:
+                  $ref: '#/components/schemas/ApiKeyResponse'
+        403:
+          description: Forbidden
+  /api_keys/generate:
+    post:
+      tags:
+        - auth
+      description: "Generate a new api_key for use with X-API-KEY auth method. The returned key needs to be saved by the caller, as it isn't stored in the system."
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              $ref: '#/components/schemas/ApiKeyGenerateRequest'
+      responses:
+        200:
+          description: Ok
+          content:
+            "application/json":
+              schema:
+                $ref: '#/components/schemas/ApiKeyGenerateResponse'
+        403:
+          description: Forbidden
+  /api_keys/{api_key_id}:
+    parameters:
+      - $ref: '#/components/parameters/api_key_id_param'
+    get:
+      tags:
+        - auth
+      description: "inspect the api_key entry"
+      responses:
+        200:
+          description: OK
+          content:
+            "application/json":
+              schema:
+                $ref: '#/components/schemas/ApiKeyResponse'
+        403:
+          description: Forbidden
+        404:
+          description: Not found
+    delete:
+      tags:
+        - auth
+      description: "delete the api_key entry"
+      responses:
+        200:
+          description: OK
+        403:
+          description: Forbidden
+        404:
+          description: Not found
+  /v1/ethereum/stake:
+    post:
+      summary: Stake x amounts of 32ETH on Ethereum
+      tags:
+        - staking
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              title: "StakeRequest"
+              type: "object"
+              properties:
+                fee_recipient:
+                  type: string
+                  pattern: "^(0x[a-fA-F0-9]{40})$"
+                  description: "Ethereum address for receiving execution fees"
+                withdrawal_address:
+                  type: string
+                  pattern: "^(0x[a-fA-F0-9]{40})$"
+                  description: "Ethereum execution address for receiving deposit and consensus fees"
+                amount:
+                  type: integer
+                  format: integer
+                  description: "Amount of ETH, should be in multiples of 32ETH"
+              required:
+                  - withdrawal_credentials
+                  - amount
+      responses:
+        202:
+          description: "Accepted - request is being processed in the background"
+        201:
+          description: "Created - specified amount of ETH is ready for deposit"
+          content:
+            "application/json":
+              schema:
+                title: ListStakeResponse
+                type: array
+                items:
+                  type: "object"
+                  properties:
+                    deposit_data_root:
+                      type: string
+                    deposit_message_root:
+                      type: string
+                    fee_recipient:
+                      type: string
+                    fork_version:
+                      type: string
+                    validator_id:
+                      type: string
+                    validator_public_key:
+                      type: string
+                    validator_signature:
+                      type: string
+                    withdrawal_credentials:
+                      type: string
+                  required:
+                    - validator_id
+                    - validator_public_key
+                    - validator_signature
+                    - withdrawal_credentials
+                    - deposit_data_root
+                    - deposit_message_root
+                    - fork_version
+                    - fee_recipient
+        400:
+          description: "Specified fee recipient or withdrawal credentials follow incorrect pattern or amount of ETH is invalid e.g. not a multiple of 32."
+  /v1/ethereum/unstake:
+    post:
+      description: "Unstake x amounts of 32ETH on Ethereum"
+      tags:
+        - staking
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              title: "UnstakeRequest"
+              type: "object"
+              properties:
+                amount:
+                  type: integer
+                  format: integer
+                  description: "Amount of ETH to be unstaked, should be in multiples of 32ETH"
+      responses:
+        202:
+          description: "Accepted - request is being processed in the background"
+        200:
+          description: "Received successful response from Beacon chain for exiting specified amount of ETH. It takes at a minimum 5 epochs (32 minutes) for a validator to exit after initiating a voluntary exit. This number can be much higher depending on how many other validators are queued to exit."
+          content:
+            "application/json":
+              schema:
+                title: ListUnstakeResponse
+                type: array
+                items:
+                  type: "object"
+                  properties:
+                    transaction_hash: 
+                      type: "string"
+                      description: "hash of the signed exit transaction"
+        400:
+          description: "Specified amount of ETH is invalid."
+        409:
+          description: "Specified amount of ETH is not yet in a state available to be unstaked. The amount of ETH should be actively staking, not have been slashed and have been active for at least 256 epochs (~27 hours) since it has been activated to be eligible for unstaking."
+  /v1/ethereum/stats:
+    post:
+      description: "Get rewards and aggregated node statistics for validators hosted by Chorus/Opus"
+      tags:
+        - rewards
+        - performance
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              title: StatsRequest
+              type: "object"
+              properties:
+                since:
+                  type: string
+                  format: date
+                  example: "2019-05-17"
+                  description: A starting day for which need to retrieve rewards.
+                indices:
+                  type: array
+                  items:
+                    type: integer
+                    format: integer
+                  description: "Indices of validators for which rewards and performance data is needed"
+                granularity:
+                  type: string
+                  enum:
+                    - "day"
+                    - "week"
+                    - "month"
+                    - "quarter"
+                    - "year"
+                    - "all"
+                  description: "Granularity of the aggregation of rewards and performance data"
+                size:
+                  type: integer
+                  format: integer
+                  description: "Number of days to return counted backwards from the current day for which rewards and performance data is needed. If not specified, defaults to 1 day."    
+      responses:
+        206:
+          description: "Reward and performance data have been returned, but there is more to get"
+          content:
+            "application/json":
+              schema:
+                title: StatsResponse
+                type: "object"
+                properties:
+                  rewards:
+                    $ref: '#/components/schemas/RewardsResponse'
+                  nodes:
+                    $ref: '#/components/schemas/NodeAggregateResponse'
+                required:
+                  - rewards
+                  - nodes
+        200:
+          description: "Reward and performance data have been returned, to this day"
+          content:
+            "application/json":
+              schema:
+                title: StatsResponse
+                type: "object"
+                properties:
+                  rewards:
+                    $ref: '#/components/schemas/RewardsResponse'
+                  nodes:
+                    $ref: '#/components/schemas/NodeAggregateResponse'
+                required:
+                  - rewards
+                  - nodes
