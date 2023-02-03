@@ -3,7 +3,7 @@ info:
   title: 'OPUS'
   version: '0.1'
 servers:
-- url: http://localhost:8080/v1/
+- url: http://localhost:8080
   description: Local
 components:
   parameters:
@@ -69,16 +69,27 @@ components:
           active:
             type: integer
             description: Total number of active/validating nodes
+          deposited:
+            type: integer
+            description: Total number of nodes for which deposit happened, but they are not yet on chain
           pending:
             type: integer
             description: Number of validators in pending state
           exited:
             type: integer
             description: Number of validators in exited state
-          withdrawal:
+          unstakeable:
             type: integer
-            description: Number of validators for which withdrawal is possible or it's already done
-    RewardsResponse:
+            description: Number of validators that can be unstaked
+          balance_active:
+            type: string
+            pattern: "^\\d+$"
+            description: Sum of the balance for active nodes
+          balance_total:
+            type: string
+            pattern: "^\\d+$"
+            description: Sum of the balance for all nodes (except exited)
+    RewardsAndEffectivenessResponse:
       type: array
       description: Array of daily rewards objects
       items:
@@ -92,14 +103,23 @@ components:
             type: string
             format: date
             example: "2019-05-17"
-            description: Date for which rewards are shown
-          earnings:
+            description: Start date in the aggregated time range for which rewards are shown
+          aggregate_days:
+            type: integer
+            format: date
+            example: "2019-05-17"
+            description: Number of days in a single aggregation
+          delta:
             type: string
             pattern: "^\\d+$"
-            description: Total earnings (in gwei). This can be negative values.
+            description: Total earnings (in gwei). This can be negative values
+          apr:
+            type: number
+            format: float
+            description: total rewards divided by active stake over 365 days
           rewards:
             type: object
-            description: Rewards (in gwei) for particular date. These values are always positive.
+            description: Rewards (in gwei) for particular date. These values are always positive
             properties:
               total:
                 type: string
@@ -208,7 +228,7 @@ paths:
           description: Forbidden
         401:
           description: Unauthorized
-  /api_keys:
+  /v1/api_keys:
     get:
       tags:
         - auth
@@ -225,7 +245,7 @@ paths:
                   $ref: '#/components/schemas/ApiKeyResponse'
         403:
           description: Forbidden
-  /api_keys/generate:
+  /v1/api_keys/generate:
     post:
       tags:
         - auth
@@ -245,7 +265,7 @@ paths:
                 $ref: '#/components/schemas/ApiKeyGenerateResponse'
         403:
           description: Forbidden
-  /api_keys/{api_key_id}:
+  /v1/api_keys/{api_key_id}:
     parameters:
       - $ref: '#/components/parameters/api_key_id_param'
     get:
@@ -300,8 +320,9 @@ paths:
                   format: integer
                   description: "Amount of ETH, should be in multiples of 32ETH"
               required:
-                  - withdrawal_credentials
-                  - amount
+                - fee_recipient
+                - withdrawal_credentials
+                - amount
       responses:
         202:
           description: "Accepted - request is being processed in the background"
@@ -383,8 +404,7 @@ paths:
     post:
       description: "Get rewards and aggregated node statistics for validators hosted by Chorus/Opus"
       tags:
-        - rewards
-        - performance
+        - rewards & performance
       requestBody:
         required: true
         content:
@@ -393,31 +413,28 @@ paths:
               title: StatsRequest
               type: "object"
               properties:
-                since:
+                from:
                   type: string
                   format: date
                   example: "2019-05-17"
-                  description: A starting day for which need to retrieve rewards.
-                indices:
-                  type: array
-                  items:
-                    type: integer
-                    format: integer
-                  description: "Indices of validators for which rewards and performance data is needed"
-                granularity:
+                  description: |
+                    A starting day for which need to retrieve rewards.
+                    If not sent, the date of registration is used.
+                to:
                   type: string
-                  enum:
-                    - "day"
-                    - "week"
-                    - "month"
-                    - "quarter"
-                    - "year"
-                    - "all"
-                  description: "Granularity of the aggregation of rewards and performance data"
-                size:
+                  format: date
+                  example: "2019-05-17"
+                  description: |
+                    An ending day for which need to retrieve rewards.
+                    By default, assumes it is current day.
+                aggregate_days:
                   type: integer
-                  format: integer
-                  description: "Number of days to return counted backwards from the current day for which rewards and performance data is needed. If not specified, defaults to 1 day."    
+                  description: |
+                    Number of daily statistics aggregated in a single entry.
+                    The aggregation works as follows:
+                      - for percentage values, shows avg()
+                      - for gwei or count values, shows sum()
+                    By default, shows single day aggregations.
       responses:
         206:
           description: "Reward and performance data have been returned, but there is more to get"
@@ -428,7 +445,7 @@ paths:
                 type: "object"
                 properties:
                   rewards:
-                    $ref: '#/components/schemas/RewardsResponse'
+                    $ref: '#/components/schemas/RewardsAndEffectivenessResponse'
                   nodes:
                     $ref: '#/components/schemas/NodeAggregateResponse'
                 required:
@@ -443,9 +460,114 @@ paths:
                 type: "object"
                 properties:
                   rewards:
-                    $ref: '#/components/schemas/RewardsResponse'
+                    $ref: '#/components/schemas/RewardsAndEffectivenessResponse'
                   nodes:
                     $ref: '#/components/schemas/NodeAggregateResponse'
                 required:
                   - rewards
                   - nodes
+  /v1/ethereum/validators:
+    post:
+      description: "Get rewards and aggregated node statistics for validators hosted by Chorus/Opus"
+      tags:
+        - rewards & performance
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              title: ValidatorsRequest
+              type: "object"
+              properties:
+                from:
+                  type: string
+                  format: date
+                  example: "2019-05-17"
+                  description: A starting day for which need to retrieve rewards.
+                to:
+                  type: string
+                  format: date
+                  example: "2019-05-17"
+                  description: |
+                    An ending day for which need to retrieve rewards.
+                    By default, assumes it is current day.
+                validators:
+                  type: array
+                  items: 
+                    type: "string"
+                    description: |
+                      Validator signing key, or id object
+                  description: |
+                    Array of indices or public signing key,
+                    if empty returns all validators
+                aggregate_days:
+                  type: integer
+                  description: |
+                    Number of daily statistics aggregated in a single entry.
+                    The aggregation works as follows:
+                      - for percentage values, shows avg()
+                      - for gwei or count values, shows sum()
+                    By default, shows single day aggregations.
+      responses:
+        206:
+          description: "Reward and performance data have been returned, but there is more to get"
+          content:
+            "application/json":
+              schema:
+                title: ValidatorsResponse
+                type: "array"
+                items:
+                  type: object
+                  properties:
+                    balance:
+                      type: string
+                      pattern: "^\\d+$"
+                      description: Validator balance (in gwei)
+                    index:
+                      type: integer
+                      description: On-chain index of validator (if missing, validator in deposited state)
+                    public_signing_key:
+                      type: string
+                    withdrawal_credentials:
+                      type: string
+                    rewards:
+                      $ref: '#/components/schemas/RewardsAndEffectivenessResponse'
+                    fee_recipient:
+                      type: string
+                  required:
+                    - balance
+                    - rewards
+                    - withdrawal_credentials
+                    - public_signing_key
+                    - fee_recipient
+        200:
+          description: "Reward and performance data have been returned, to this day"
+          content:
+            "application/json":
+              schema:
+                title: ValidatorsResponse
+                type: "array"
+                items:
+                  type: object
+                  properties:
+                    balance:
+                      type: string
+                      pattern: "^\\d+$"
+                      description: Validator balance (in gwei)
+                    index:
+                      type: integer
+                      description: On-chain index of validator (if missing, validator in deposited state)
+                    public_signing_key:
+                      type: string
+                    withdrawal_credentials:
+                      type: string
+                    fee_recipient:
+                      type: string
+                    rewards:
+                      $ref: '#/components/schemas/RewardsAndEffectivenessResponse'
+                  required:
+                    - balance
+                    - rewards
+                    - withdrawal_credentials
+                    - public_signing_key
+                    - fee_recipient
