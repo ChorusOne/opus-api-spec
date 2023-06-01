@@ -93,36 +93,53 @@ components:
             pattern: "^\\d+$"
             description: Sum of the balance for all nodes (except exited)
           requests:
+            description: "Used to display about staking request activity and progress of validator status"
             type: array
             items:
-               type: object
-               properties:
-                  request_id:
-                    type: string
-                    format: uuid
-                    example: 9b4ec01f-c4e8-47c0-a2e0-fffc940dcc31
-                    description: Opus internal request ID
-                  request_type:
-                    type: string
-                    enum: [stake, unstake]
-                    description: Action done on-chain in the work of this request
-                  network:
-                    type: string
-                  validators:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        public_signing_key:
-                          type: string
-                        status:
-                          type: string
-                          enum: ["deposited", "pending", "active", "exited", "withdrawn"]
-                      required:
-                        - public_signing_key
-                        - status
-               required:
+              type: object
+              properties:
+                transaction_id:
+                  type: string
+                  pattern: "^0x[a-f,0-9]+$"
+                  description: Eth1 chain deposit transaction ID. This field is empty for unstake requests
+                request_id:
+                  type: string
+                  format: uuid
+                  example: 9b4ec01f-c4e8-47c0-a2e0-fffc940dcc31
+                  description: Opus internal request ID
+                created_at:
+                  type: string
+                  description: "Timestamp when stake request was created, in milliseconds"
+                request_type:
+                  type: string
+                  enum: [stake, unstake]
+                  description: Action done on-chain in the work of this request
+                network:
+                  type: string
+                validators:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      public_signing_key:
+                        type: string
+                      status:
+                        type: string
+                        enum:
+                          [
+                            "created",
+                            "deposited",
+                            "pending",
+                            "active",
+                            "exited",
+                            "withdrawn",
+                          ]
+                    required:
+                      - public_signing_key
+                      - status
+              required:
                 - request_id
+                - created_at
                 - request_type
                 - network
                 - validators
@@ -646,8 +663,9 @@ paths:
         206:
           description: |
             Reward and performance data have been returned, but there is more to get.
-            Users should adjust "from" parameter to contain the last "when" date
-            returned from an API to get more data.
+            By default, response is sorted in descending order using `when` field meaning that first entry of the array is the most recent date of the rewards or nodes response. 
+            Users should adjust the `to` parameter in their next request to be equal to the oldest `when` i.e. last entry of the `nodes` array to get more data.
+            When paginating forward, users should adjust the "from" parameter to include the last "when" date returned from the API in order to obtain the next page of results.
           content:
             "application/json":
               schema:
