@@ -1,7 +1,7 @@
 openapi: "3.0.3"
 info:
   title: "OPUS"
-  version: "1.0"
+  version: "0.1"
 servers:
   - url: http://localhost:8080
     description: Local
@@ -738,61 +738,3 @@ paths:
                 required:
                   - rewards
                   - nodes
-
-  /api/v1/validators:
-    get:
-      description: "Get rewards and aggregated node statistics for validators hosted by Chorus/Opus"
-      tags:
-        - rewards & performance
-      requestBody:
-        required: true
-        content:
-          "application/json":
-            schema:
-              $ref: "#/components/schemas/ValidatorsRequest"
-      responses:
-        206:
-          description: |
-            Reward and performance data have been returned, but there is more to get.
-            Users should adjust "from" parameter to contain the last "when" date
-            returned from an API to get more data.
-          content:
-            "application/json":
-              schema:
-                title: ValidatorsPartialResponse
-                $ref: "#components/schemas/ValidatorsResponse"
-        200:
-          description: "Reward and performance data have been returned, to this day"
-          content:
-            "application/json":
-              schema:
-                title: ValidatorsFullResponse
-                $ref: "#components/schemas/ValidatorsResponse"
-    post:
-      description: "Get rewards and aggregated node statistics for validators hosted by Chorus/Opus"
-      tags:
-        - rewards & performance
-      requestBody:
-        required: true
-        content:
-          "application/json":
-            schema:
-              $ref: "#/components/schemas/ValidatorsRequest"
-      responses:
-        206:
-          description: |
-            Reward and performance data have been returned, but there is more to get.
-            Users should adjust "from" parameter to contain the last "when" date
-            returned from an API to get more data.
-          content:
-            "application/json":
-              schema:
-                title: ValidatorsPartialResponse
-                $ref: "#components/schemas/ValidatorsResponse"
-        200:
-          description: "Reward and performance data have been returned, to this day"
-          content:
-            "application/json":
-              schema:
-                title: ValidatorsFullResponse
-                $ref: "#components/schemas/ValidatorsResponse"
