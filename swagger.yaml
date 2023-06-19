@@ -638,7 +638,11 @@ paths:
                 network:
                   type: string
                   enum: ["ethereum"]
-                  description: "Network for which to perform staking request"
+                  description: "Network for which to perform unstaking request"
+                request_id:
+                  type: "string"
+                  format: "uuid"
+                  description: "Unstake request id used to track request when polling the endpoint."
       responses:
         202:
           description: "Accepted - request is being processed in the background"
