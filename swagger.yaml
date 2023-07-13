@@ -492,13 +492,13 @@ components:
 paths:
   /health:
     get:
-      description: "healthcheck"
+      description: Health Check
       responses:
         200:
           description: OK
   /version:
     get:
-      description: "Version of code base"
+      description: Version of code base
       responses:
         200:
           description: OK
@@ -519,7 +519,7 @@ paths:
                   - url_versions
   /api/v1/auth:
     get:
-      description: "verify authentication status"
+      description: Verify authentication status
       tags:
         - auth
       responses:
@@ -533,7 +533,7 @@ paths:
     get:
       tags:
         - auth
-      description: "list api keys"
+      description: List api keys
       responses:
         200:
           description: OK
@@ -550,7 +550,7 @@ paths:
     post:
       tags:
         - auth
-      description: "Generate a new api_key for use with X-API-KEY auth method. The returned key needs to be saved by the caller, as it isn't stored in the system."
+      description: Generate a new api_key for use with X-API-KEY auth method. The returned key needs to be saved by the caller, as it isn't stored in the system.
       requestBody:
         required: true
         content:
@@ -572,7 +572,7 @@ paths:
     get:
       tags:
         - auth
-      description: "inspect the api_key entry"
+      description: Inspect the api_key entry
       responses:
         200:
           description: OK
@@ -587,7 +587,7 @@ paths:
     delete:
       tags:
         - auth
-      description: "delete the api_key entry"
+      description: Delete the api_key entry
       responses:
         200:
           description: OK
@@ -674,7 +674,7 @@ paths:
           description: "Staking capacity limit reached. Contact Chorus One to increase capacity."
   /api/v1/unstake:
     post:
-      description: "Unstake x amounts of 32ETH on Ethereum"
+      description: Unstake x amounts of 32ETH on Ethereum
       tags:
         - staking
       requestBody:
@@ -708,7 +708,7 @@ paths:
           description: "Specified amount of ETH is not yet in a state available to be unstaked. The amount of ETH should be actively staking, not have been slashed and have been active for at least 256 epochs (~27 hours) since it has been activated to be eligible for unstaking."
   /api/v1/stats:
     post:
-      description: "Get rewards and aggregated node statistics for validators hosted by Chorus/Opus"
+      description: Get rewards and aggregated node statistics for validators hosted by Chorus/Opus
       tags:
         - rewards & performance
       requestBody:
@@ -754,7 +754,7 @@ paths:
 
   /api/v1/validators:
     post:
-      description: "Get rewards and aggregated node statistics for validators hosted by Chorus/Opus"
+      description: Get rewards and aggregated node statistics for validators hosted by Chorus/Opus
       tags:
         - rewards & performance
       requestBody:
@@ -783,7 +783,7 @@ paths:
                 $ref: "#components/schemas/ValidatorsResponse"
   /api/v1/signed-exit-transactions:
     post:
-      description: "Pregenerate signed exit transaction for previously created validators via OPUS API, customers can opt-in to encrypt the response with a PGP public key shared previously."
+      description: Pregenerate signed exit transaction for previously created validators via OPUS API, customers can opt-in to encrypt the response with a PGP public key shared previously.
       tags:
         - staking
       requestBody:
