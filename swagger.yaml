@@ -1,7 +1,7 @@
 openapi: "3.0.3"
 info:
   title: "OPUS"
-  version: "0.1"
+  version: "1.0"
 servers:
   - url: http://localhost:8080
     description: Local
@@ -249,15 +249,11 @@ components:
               execution_priority:
                 type: string
                 pattern: "^\\d+$"
-                description: Priority fees for the date
+                description: Priority fees for the date (including MEV)
               execution_mev:
                 type: string
                 pattern: "^\\d+$"
                 description: MEV earnings
-              consensus_sync_committee:
-                type: string
-                pattern: "^\\d+$"
-                description: Sync committee earnings
               consensus_block:
                 type: string
                 pattern: "^\\d+$"
@@ -265,7 +261,7 @@ components:
               consensus_attestation:
                 type: string
                 pattern: "^\\d+$"
-                description: Consensus rewards for attesting blocks
+                description: Consensus rewards for attesting blocks and participating in sync committee
           penalties:
             type: object
             description: Penalties (in gwei) for particular date. These values are always positive.
@@ -351,30 +347,84 @@ components:
           description: "Network for which to perform statistics request"
       required:
         - network
+    DateParameter:
+      type: string
+      format: date
+      example: "2019-05-17"
+      description: |
+        A starting day for which need to retrieve rewards.
+        This date should be always in UTC time zone.
+    ValidatorIndex:
+      type: integer
+      description: |
+        Validator index on chain
+    EffectivenessRating:
+      type: number
+      description: |
+        Effectiveness rating as reported
+    ValidatorBalance:
+      type: string
+      description: |
+        Balance of validator
+    ValidatorPublicKey:
+      type: string
+      description: |
+        Validator public key, either with or without 0x prefix.
+    ValidatorStatus:
+      type: "string"
+      description: "An optional status filter. Multiple statuses can be requested."
+      enum: ["created", "deposited", "pending", "active", "exited", "withdrawn"]
     ValidatorsRequest:
       type: "object"
       properties:
         from:
-          type: string
-          format: date
-          example: "2019-05-17"
           description: |
-            A starting day for which need to retrieve rewards.
-            This date should be always in UTC time zone.
+            A query range start parameter. Can be one of: date string
+            in format "YYYY-MM-DD", integer validator on-chain index,
+            float effectiveness rating, string that represents integer
+            value of the balance in gwei, or validator public key (accepts both
+            0x prefixed hex strings, and non-prefixed hex).
+            If passed, must be of the same type as "to" parameter.
+          oneOf:
+          - $ref: "#/components/schemas/DateParameter"
+          - $ref: "#/components/schemas/ValidatorIndex"
+          - $ref: "#/components/schemas/EffectivenessRating"
+          - $ref: "#/components/schemas/ValidatorBalance"
+          - $ref: "#/components/schemas/ValidatorPublicKey"
         to:
-          type: string
-          format: date
-          example: "2019-05-17"
           description: |
-            An ending day for which need to retrieve rewards.
-            By default, assumes it is current day.
-            This date should be always in UTC time zone.
+            A query range start parameter. Can be one of: date string
+            in format "YYYY-MM-DD", integer validator on-chain index,
+            float effectiveness rating, string that represents integer
+            value of the balance in gwei, or validator public key (accepts both
+            0x prefixed hex strings, and non-prefixed hex).
+            If passed, must be of the same type as "from" parameter.
+          oneOf:
+          - $ref: "#/components/schemas/DateParameter"
+          - $ref: "#/components/schemas/ValidatorIndex"
+          - $ref: "#/components/schemas/EffectivenessRating"
+          - $ref: "#/components/schemas/ValidatorBalance"
+          - $ref: "#/components/schemas/ValidatorPublicKey"
+        status:
+          type: array
+          items:
+            $ref: '#/components/schemas/ValidatorStatus'
+        sort_by:
+          type: string
+          enum: ["index", "effectiveness", "balance", "status", "public_key"]
+          description: |
+            Sorting column to use (default is index)
+        sort_order:
+          type: string
+          enum: ["asc", "desc"]
+          description: |
+            Sorting order (ascending or descending)
         validators:
           type: array
           items:
             type: "string"
             description: |
-              Validator signing key, or id object
+              Validator signing key, or uuid or on-chain index
           description: |
             Array of indices or public signing key,
             if empty returns all validators
@@ -415,8 +465,7 @@ components:
             pattern: "^\\d+$"
             description: Validator balance (in gwei)
           status:
-            type: string
-            enum: ["created", "deposited", "pending", "active", "exited"]
+            $ref: '#/components/schemas/ValidatorStatus'
           slashed:
             type: boolean
           mev_enabled:
@@ -571,6 +620,10 @@ paths:
                   type: string
                   pattern: "^(0x[a-fA-F0-9]{40})$"
                   description: "Ethereum execution address for receiving deposit and consensus fees"
+                deposit_address:
+                  type: string
+                  pattern: "^(0x[a-fA-F0-9]{40})$"
+                  description: "Ethereum execution address which will be used for making the validator deposit."
                 amount:
                   type: integer
                   format: integer
@@ -583,6 +636,7 @@ paths:
                 - request_id
                 - fee_recipient
                 - withdrawal_address
+                - deposit_address
                 - amount
                 - network
       responses:
@@ -615,7 +669,7 @@ paths:
                     - deposit_data_root
                     - fee_recipient
         400:
-          description: "Specified fee recipient or withdrawal credentials follow incorrect pattern or amount of ETH is invalid e.g. not a multiple of 32."
+          description: "Specified fee recipient or withdrawal credentials follow incorrect pattern or amount of ETH is invalid i.e. must be at least 32, a multiple of 32 and less than 3200."
         428:
           description: "Staking capacity limit reached. Contact Chorus One to increase capacity."
   /api/v1/unstake:
@@ -653,51 +707,6 @@ paths:
         428:
           description: "Specified amount of ETH is not yet in a state available to be unstaked. The amount of ETH should be actively staking, not have been slashed and have been active for at least 256 epochs (~27 hours) since it has been activated to be eligible for unstaking."
   /api/v1/stats:
-    get:
-      description: "Get rewards and aggregated node statistics for validators hosted by Chorus/Opus"
-      tags:
-        - rewards & performance
-      requestBody:
-        required: true
-        content:
-          "application/json":
-            schema:
-              $ref: "#/components/schemas/StatsRequest"
-      responses:
-        206:
-          description: |
-            Reward and performance data have been returned, but there is more to get.
-            By default, response is sorted in descending order using `when` field meaning that first entry of the array is the most recent date of the rewards or nodes response. 
-            Users should adjust the `to` parameter in their next request to be equal to the oldest `when` i.e. last entry of the `nodes` array to get more data.
-            When paginating forward, users should adjust the "from" parameter to include the last "when" date returned from the API in order to obtain the next page of results.
-          content:
-            "application/json":
-              schema:
-                title: StatsResponse
-                type: "object"
-                properties:
-                  rewards:
-                    $ref: "#/components/schemas/RewardsAndEffectivenessResponse"
-                  nodes:
-                    $ref: "#/components/schemas/NodeAggregateResponse"
-                required:
-                  - rewards
-                  - nodes
-        200:
-          description: "Reward and performance data have been returned, to this day"
-          content:
-            "application/json":
-              schema:
-                title: StatsResponse
-                type: "object"
-                properties:
-                  rewards:
-                    $ref: "#/components/schemas/RewardsAndEffectivenessResponse"
-                  nodes:
-                    $ref: "#/components/schemas/NodeAggregateResponse"
-                required:
-                  - rewards
-                  - nodes
     post:
       description: "Get rewards and aggregated node statistics for validators hosted by Chorus/Opus"
       tags:
@@ -742,3 +751,113 @@ paths:
                 required:
                   - rewards
                   - nodes
+
+  /api/v1/validators:
+    post:
+      description: "Get rewards and aggregated node statistics for validators hosted by Chorus/Opus"
+      tags:
+        - rewards & performance
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              $ref: "#/components/schemas/ValidatorsRequest"
+      responses:
+        206:
+          description: |
+            Reward and performance data have been returned, but there is more to get.
+            Users should adjust "from" parameter to contain the last "when" date
+            returned from an API to get more data.
+          content:
+            "application/json":
+              schema:
+                title: ValidatorsPartialResponse
+                $ref: "#components/schemas/ValidatorsResponse"
+        200:
+          description: "Reward and performance data have been returned, to this day"
+          content:
+            "application/json":
+              schema:
+                title: ValidatorsFullResponse
+                $ref: "#components/schemas/ValidatorsResponse"
+  /api/v1/signed-exit-transactions:
+    post:
+      description: "Pregenerate signed exit transaction for previously created validators via OPUS API, customers can opt-in to encrypt the response with a PGP public key shared previously."
+      tags:
+        - staking
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              title: "EthereumSignedExitTransactionRequest"
+              type: "object"
+              properties:
+                encryption:
+                  type: "string"
+                  enum: [pgp, unencrypted]
+                  description: "Specify which encryption schema or not encrypted we want to get as return"
+                public_keys:
+                  type: array
+                  items:
+                    type: "string"
+                    description: |
+                      Validator signing key
+                  description: |
+                    Array of public signing key,
+                    if empty returns all validators
+              required:
+                  - encryption
+      responses:
+        200:
+          description: OK
+          content:
+            "application/json":
+              schema:
+                title: ValidatorExitResponse
+                type: "object"
+                properties:
+                  exit_transactions:
+                    type: array
+                    items:
+                      type: "string"
+                      pattern: "^0x[a-fA-F0-9]*$"
+                      description: "unencrypted output or hex encoded output of `gpg --armor --encrypt -r <org pgp key>` (or equivalent) on the exit transaction signature and data"
+                      example: |
+                        example signature data:
+                        {
+                          "exit":{
+                            "message":{
+                              "epoch":"38878",
+                              "validator_index":"125689"
+                            },
+                            "signature":"0x84f21a5156596e3028e22e
+                              7cc7de56a550734994171dde6fdd6cf
+                              98edbe5ada2124f9a974be2b73b2f1c99
+                              fab03324a1f90338c5ea5a73bb3c53598
+                              e276502ac17f37062d4bc84f1c3d714e3
+                              b33f48e6c34dec961e638ffd48e21d734fec0fdc"
+                          }
+                        }
+                  fork_version:
+                    type: "string"
+                    pattern: "^0x[a-fA-F0-9]*$"
+                    description: "hex encoded current fork version of the beacon_chain (at the time of this request)"
+                  encryption:
+                    type: "string"
+                    enum: [pgp, unencrypted]
+                    description: "Specify which encryption schema or not encrypted we got from the response"
+                required:
+                  - exit_transaction
+                  - fork_version
+                  - encryption
+        400:
+          description: "Bad request"
+          content:
+            "text/plain":
+              schema:
+                type: "string"
+                description: "Error message describing issue with the request. Errors include: 'No PGP public key supplied'"
+        404:
+          description: "Validator not found"
