@@ -386,11 +386,11 @@ components:
             0x prefixed hex strings, and non-prefixed hex).
             If passed, must be of the same type as "to" parameter.
           oneOf:
-          - $ref: "#/components/schemas/DateParameter"
-          - $ref: "#/components/schemas/ValidatorIndex"
-          - $ref: "#/components/schemas/EffectivenessRating"
-          - $ref: "#/components/schemas/ValidatorBalance"
-          - $ref: "#/components/schemas/ValidatorPublicKey"
+            - $ref: "#/components/schemas/DateParameter"
+            - $ref: "#/components/schemas/ValidatorIndex"
+            - $ref: "#/components/schemas/EffectivenessRating"
+            - $ref: "#/components/schemas/ValidatorBalance"
+            - $ref: "#/components/schemas/ValidatorPublicKey"
         to:
           description: |
             A query range start parameter. Can be one of: date string
@@ -400,15 +400,23 @@ components:
             0x prefixed hex strings, and non-prefixed hex).
             If passed, must be of the same type as "from" parameter.
           oneOf:
-          - $ref: "#/components/schemas/DateParameter"
-          - $ref: "#/components/schemas/ValidatorIndex"
-          - $ref: "#/components/schemas/EffectivenessRating"
-          - $ref: "#/components/schemas/ValidatorBalance"
-          - $ref: "#/components/schemas/ValidatorPublicKey"
+            - $ref: "#/components/schemas/DateParameter"
+            - $ref: "#/components/schemas/ValidatorIndex"
+            - $ref: "#/components/schemas/EffectivenessRating"
+            - $ref: "#/components/schemas/ValidatorBalance"
+            - $ref: "#/components/schemas/ValidatorPublicKey"
+        tie_break_pubkey:
+          description: |
+            When returning data on the validators response on
+            the `continue_query`, some data might have the same value when ordering,
+            for example, if we get validators using `ValidatorBalance`, the balance might
+            be the same for multiple validators, to know where we continue the query from
+            we use the public key as a tie-breaker.
+          type: string
         status:
           type: array
           items:
-            $ref: '#/components/schemas/ValidatorStatus'
+            $ref: "#/components/schemas/ValidatorStatus"
         sort_by:
           type: string
           enum: ["index", "effectiveness", "balance", "status", "public_key"]
@@ -451,54 +459,133 @@ components:
           description: "Network for which to perform statistics request"
       required:
         - network
+        - from
+        - to
     ValidatorsResponse:
-      type: "array"
-      items:
-        type: object
-        properties:
-          network:
-            type: string
-            enum: ["ethereum"]
-            description: "Network for which to perform statistics request"
-          balance:
-            type: string
-            pattern: "^\\d+$"
-            description: Validator balance (in gwei)
-          status:
-            $ref: '#/components/schemas/ValidatorStatus'
-          slashed:
-            type: boolean
-          mev_enabled:
-            type: boolean
-          index:
-            type: integer
-            description: On-chain index of validator (if missing, validator in deposited state)
-          public_signing_key:
-            type: string
-          withdrawal_credentials:
-            type: string
-          rewards:
-            $ref: "#/components/schemas/RewardsAndEffectivenessResponse"
-          fee_recipient:
-            type: string
-        required:
-          - status
-          - balance
-          - mev_enabled
-          - rewards
-          - withdrawal_credentials
-          - public_signing_key
-          - fee_recipient
+      type: object
+      properties:
+        continue_query:
+          $ref: "#/components/schemas/ValidatorsRequest"
+        validators:
+          type: "array"
+          items:
+            type: object
+            properties:
+              network:
+                type: string
+                enum: ["ethereum"]
+                description: "Network for which to perform statistics request"
+              balance:
+                type: string
+                pattern: "^\\d+$"
+                description: Validator balance (in gwei)
+              status:
+                $ref: '#/components/schemas/ValidatorStatus'
+              slashed:
+                type: boolean
+              mev_enabled:
+                type: boolean
+              index:
+                type: integer
+                description: On-chain index of validator (if missing, validator in deposited state)
+              public_signing_key:
+                type: string
+              withdrawal_credentials:
+                type: string
+              rewards:
+                $ref: "#/components/schemas/RewardsAndEffectivenessResponse"
+              fee_recipient:
+                type: string
+            required:
+              - status
+              - balance
+              - mev_enabled
+              - rewards
+              - withdrawal_credentials
+              - public_signing_key
+              - fee_recipient
+      required:
+        - validators
+    StakingRequestsResponse:
+      type: object
+      title: "StakingRequestsResponse"
+      properties:
+        requests:
+          title: "StakingRequests"
+          description: "Used to display about staking request activity and progress of validator status"
+          type: array
+          items:
+            type: object
+            properties:
+              request_id:
+                type: string
+                format: uuid
+                example: 9b4ec01f-c4e8-47c0-a2e0-fffc940dcc31
+                description: Opus internal request ID
+              transaction_id:
+                type: string
+                pattern: "^0x[a-f,0-9]+$"
+                description: Eth1 chain deposit transaction ID. This field is empty for unstake requests
+              created_at:
+                type: string
+                description: "Timestamp when stake request was created, in milliseconds"
+              network:
+                type: string
+                description: "Network for which staking request was performed"
+              status:
+                type: string
+                description: "Status of the staking request"
+              validators:
+                title: "StakingRequestsValidators"
+                type: array
+                items:
+                  type: object
+                  properties:
+                    status:
+                      $ref: '#/components/schemas/ValidatorStatus'
+                    index:
+                      type: integer
+                      format: int64
+                      description: On-chain index of validator (if missing, validator in deposited state)
+                    public_signing_key:
+                      type: string
+                    withdrawal_address:
+                      type: string
+                    amount:
+                      type: integer
+                    fee_recipient:
+                      type: string
+                    activated_at: 
+                      type: string
+                    activated_epoch: 
+                      type: string
+                    deposited_at: 
+                      type: string
+                    deposited_block:
+                      type: string
+                  required:
+                    - network
+                    - status
+                    - public_signing_key
+                    - withdrawal_address
+                    - fee_recipient
+            required:
+              - request_id
+              - created_at
+              - request_type
+              - network
+              - status
+              - validators
 paths:
   /health:
     get:
-      description: Health Check
+      description: "healthcheck"
       responses:
         200:
           description: OK
   /version:
     get:
-      description: Version of code base
+      description: "Version of code base"
       responses:
         200:
           description: OK
@@ -519,7 +606,7 @@ paths:
                   - url_versions
   /api/v1/auth:
     get:
-      description: Verify authentication status
+      description: "verify authentication status"
       tags:
         - auth
       responses:
@@ -533,7 +620,7 @@ paths:
     get:
       tags:
         - auth
-      description: List api keys
+      description: "list api keys"
       responses:
         200:
           description: OK
@@ -550,7 +637,7 @@ paths:
     post:
       tags:
         - auth
-      description: Generate a new api_key for use with X-API-KEY auth method. The returned key needs to be saved by the caller, as it isn't stored in the system.
+      description: "Generate a new api_key for use with X-API-KEY auth method. The returned key needs to be saved by the caller, as it isn't stored in the system."
       requestBody:
         required: true
         content:
@@ -572,7 +659,7 @@ paths:
     get:
       tags:
         - auth
-      description: Inspect the api_key entry
+      description: "inspect the api_key entry"
       responses:
         200:
           description: OK
@@ -587,10 +674,12 @@ paths:
     delete:
       tags:
         - auth
-      description: Delete the api_key entry
+      description: "Delete given API KEY."
       responses:
         200:
           description: OK
+        400: 
+          description: "Bad Request - User needs to hold at least one API-KEY, otherwise endpoint will return 400."
         403:
           description: Forbidden
         404:
@@ -669,12 +758,12 @@ paths:
                     - deposit_data_root
                     - fee_recipient
         400:
-          description: "Specified fee recipient or withdrawal credentials follow incorrect pattern or amount of ETH is invalid i.e. must be at least 32, a multiple of 32 and less than 3200."
+          description: "Specified fee recipient or withdrawal credentials follow incorrect pattern or amount of ETH is invalid i.e. must be at least 32, a multiple of 32 and less than 8000."
         428:
           description: "Staking capacity limit reached. Contact Chorus One to increase capacity."
   /api/v1/unstake:
     post:
-      description: Unstake x amounts of 32ETH on Ethereum
+      description: "Unstake x amounts of 32ETH on Ethereum"
       tags:
         - staking
       requestBody:
@@ -689,6 +778,11 @@ paths:
                   type: integer
                   format: integer
                   description: "Amount of ETH to be unstaked, should be in multiples of 32ETH"
+                public_signing_keys:
+                  type: "array"
+                  items:
+                    type: string
+                  description: "Alternatively users may specify which validators they wish to exit"
                 network:
                   type: string
                   enum: ["ethereum"]
@@ -697,6 +791,9 @@ paths:
                   type: "string"
                   format: "uuid"
                   description: "Unstake request id used to track request when polling the endpoint."
+              required:
+                - network
+                - request_id
       responses:
         202:
           description: "Accepted - request is being processed in the background"
@@ -706,9 +803,34 @@ paths:
           description: "Specified amount of ETH is invalid."
         428:
           description: "Specified amount of ETH is not yet in a state available to be unstaked. The amount of ETH should be actively staking, not have been slashed and have been active for at least 256 epochs (~27 hours) since it has been activated to be eligible for unstaking."
+  /api/v1/staking_requests:
+    get:
+      summary: Get info on staking requests made via OPUS API
+      tags:
+        - staking
+      parameters:
+        - in: query
+          name: request_ids
+          schema:
+            type: array
+            items: 
+              type: string
+              format: uuid
+          required: false
+          description: "request_id of the staking_request"
+      responses:
+        200:
+          description: "Staking Requests grouped by request_id, optionally can be filtered by request_id, by default all will be returned."
+          content:
+            "application/json":
+              schema:
+                title: StakingRequestsResponse
+                $ref: "#components/schemas/StakingRequestsResponse"
+        404: 
+          description: "Staking request not found"
   /api/v1/stats:
     post:
-      description: Get rewards and aggregated node statistics for validators hosted by Chorus/Opus
+      description: "Get rewards and aggregated node statistics for validators hosted by Chorus/Opus"
       tags:
         - rewards & performance
       requestBody:
@@ -718,24 +840,6 @@ paths:
             schema:
               $ref: "#/components/schemas/StatsRequest"
       responses:
-        206:
-          description: |
-            Reward and performance data have been returned, but there is more to get.
-            Users should adjust "from" parameter to contain the last "when" date
-            returned from an API to get more data.
-          content:
-            "application/json":
-              schema:
-                title: StatsPartialResponse
-                type: "object"
-                properties:
-                  rewards:
-                    $ref: "#/components/schemas/RewardsAndEffectivenessResponse"
-                  nodes:
-                    $ref: "#/components/schemas/NodeAggregateResponse"
-                required:
-                  - rewards
-                  - nodes
         200:
           description: "Reward and performance data have been returned, to this day"
           content:
@@ -748,13 +852,15 @@ paths:
                     $ref: "#/components/schemas/RewardsAndEffectivenessResponse"
                   nodes:
                     $ref: "#/components/schemas/NodeAggregateResponse"
+                  continue_query:
+                    $ref: "#/components/schemas/StatsRequest"
                 required:
                   - rewards
                   - nodes
 
   /api/v1/validators:
     post:
-      description: Get rewards and aggregated node statistics for validators hosted by Chorus/Opus
+      description: "Get rewards and aggregated node statistics for validators hosted by Chorus/Opus"
       tags:
         - rewards & performance
       requestBody:
@@ -764,16 +870,6 @@ paths:
             schema:
               $ref: "#/components/schemas/ValidatorsRequest"
       responses:
-        206:
-          description: |
-            Reward and performance data have been returned, but there is more to get.
-            Users should adjust "from" parameter to contain the last "when" date
-            returned from an API to get more data.
-          content:
-            "application/json":
-              schema:
-                title: ValidatorsPartialResponse
-                $ref: "#components/schemas/ValidatorsResponse"
         200:
           description: "Reward and performance data have been returned, to this day"
           content:
@@ -783,7 +879,7 @@ paths:
                 $ref: "#components/schemas/ValidatorsResponse"
   /api/v1/signed-exit-transactions:
     post:
-      description: Pregenerate signed exit transaction for previously created validators via OPUS API, customers can opt-in to encrypt the response with a PGP public key shared previously.
+      description: "Pregenerate signed exit transaction for previously created validators via OPUS API, customers can opt-in to encrypt the response with a PGP public key shared previously."
       tags:
         - staking
       requestBody:
@@ -794,10 +890,6 @@ paths:
               title: "EthereumSignedExitTransactionRequest"
               type: "object"
               properties:
-                encryption:
-                  type: "string"
-                  enum: [pgp, unencrypted]
-                  description: "Specify which encryption schema or not encrypted we want to get as return"
                 public_keys:
                   type: array
                   items:
@@ -808,14 +900,14 @@ paths:
                     Array of public signing key,
                     if empty returns all validators
               required:
-                  - encryption
+                - encryption
       responses:
         200:
           description: OK
           content:
             "application/json":
               schema:
-                title: ValidatorExitResponse
+                title: ValidatorExitResponses
                 type: "object"
                 properties:
                   exit_transactions:
@@ -823,7 +915,7 @@ paths:
                     items:
                       type: "string"
                       pattern: "^0x[a-fA-F0-9]*$"
-                      description: "unencrypted output or hex encoded output of `gpg --armor --encrypt -r <org pgp key>` (or equivalent) on the exit transaction signature and data"
+                      description: "hex encoded exit transaction bytes"
                       example: |
                         example signature data:
                         {
@@ -844,14 +936,9 @@ paths:
                     type: "string"
                     pattern: "^0x[a-fA-F0-9]*$"
                     description: "hex encoded current fork version of the beacon_chain (at the time of this request)"
-                  encryption:
-                    type: "string"
-                    enum: [pgp, unencrypted]
-                    description: "Specify which encryption schema or not encrypted we got from the response"
                 required:
                   - exit_transaction
                   - fork_version
-                  - encryption
         400:
           description: "Bad request"
           content:
